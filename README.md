@@ -1,14 +1,38 @@
-# rrbsData
-RRBS data S4 classes
 
-Citation 
-Genome-wide methylotyping resolves breast cancer epigenetic heterogeneity and suggests novel therapeutic perspectives
+rrbsData
+========
 
-Alexander S Tanas 1,2 , Vladimir O Sigin 1 , Alexey I Kalinkin 1,3 , Nikolai V Litviakov 4 ,
-Elena M Slonimskaya 4 , Marina K Ibragimova 4 , Mona A Frolova 5 , Ekaterina O
-Ignatova 5 , Olga A Simonova 1 , Ekaterina B Kuznetsova 1,3 , Tatiana V Kekeeva 1 ,
-Sergey S Larin 6,7 , Elena V Poddubskaya 8,9 , Ivan D Trotsenko 10 , Viktoria V
-Rudenko 1 , Kristina O Karandasheva 1 , Kseniya D Petrova 1,11 , Irina V Deryusheva 4 ,
-Polina V Kazantseva 4 , Artem V Doroshenko 4 , Natalia A. Tarabanovskaya 4 , Galina
-G Chesnokova 1 , Marina I Sekacheva 8 , Marina V Nemtsova 1,3 , Vera L Izhevskaya 1 ,
-Sergey I Kutsev 2,12 , Dmitry V Zaletaev 1,2,3 , and Vladimir V Strelnikov 1,2
+[![GitHub release](https://img.shields.io/github/release/tanas80/rrbsData.svg)](https://github.com/tanas80/rrbsData/releases)
+
+
+# Introduction 
+
+*rrbsData* is an [R](http://en.wikipedia.org/wiki/R_%28programming_language%29) project
+for DNA methylation analysis and feature selection with S4 class structure. The package is designed to deal with 
+[bismark](https://www.bioinformatics.babraham.ac.uk/projects/bismark/) output files.
+
+## Current Features
+
+ * Loads methylation calling data based on data.frame sample description
+ * Easy R-style filtering object with indexes of specimens or CpG-dinucleotides
+ * Two layered matrix data design (B-value and coverage).
+ * Some reports
+ 
+-------
+# How to Use
+
+See sample.R file.
+
+-------
+# Citing rrbsData
+If you used rrbsData please cite:
+
+ * Alexander S Tanas, Vladimir O Sigin, Alexey I Kalinkin, Nikolai V Litviakov,
+Elena M Slonimskaya, Marina K Ibragimova, Mona A Frolova, Ekaterina O
+Ignatova, Olga A Simonova, Ekaterina B Kuznetsova, Tatiana V Kekeeva,
+Sergey S Larin, Elena V Poddubskaya, Ivan D Trotsenko, Viktoria V
+Rudenko, Kristina O Karandasheva, Kseniya D Petrova, Irina V Deryusheva,
+Polina V Kazantseva, Artem V Doroshenko, Natalia A. Tarabanovskaya, Galina
+G Chesnokova, Marina I Sekacheva, Marina V Nemtsova, Vera L Izhevskaya,
+Sergey I Kutsev, Dmitry V Zaletaev, and Vladimir V Strelnikov 
+*[Genome-wide methylotyping resolves breast cancer epigenetic heterogeneity and suggests novel therapeutic perspectives](http://lab.epigenetic.ru/)* // _Epigenomics_. - _(2019)_. - 0(0). - p.000-000.
