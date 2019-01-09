@@ -23,6 +23,10 @@ for DNA methylation analysis and feature selection with S4 class structure. The 
 
 See sample.R file.
 
+source("https://github.com/tanas80/rrbsData/raw/master/samples/sample.R") or
+$ wget https://github.com/tanas80/rrbsData/raw/master/samples/sample.R 
+to get source code of sample.R
+
 -------
 # Citing rrbsData
 If you used rrbsData please cite:
