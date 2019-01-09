@@ -18,19 +18,26 @@ for DNA methylation analysis and feature selection with S4 class structure. The 
  * Two layered matrix data design (B-value and coverage).
  * Some reports
 ## Installation
-
+In R console:
+```r
 library(devtools)
 install_github("tanas80/rrbsData", build_vignettes=FALSE, 
                dependencies=TRUE, ref="init")
- 
+```
 -------
 # How to Use
 
 See sample.R file.
 
-source("https://github.com/tanas80/rrbsData/raw/master/samples/sample.R") or
-$ wget https://github.com/tanas80/rrbsData/raw/master/samples/sample.R 
-to get source code of sample.R
+Type in R console:
+```r
+source("https://github.com/tanas80/rrbsData/raw/master/samples/sample.R")
+```
+or
+```console
+$ wget https://github.com/tanas80/rrbsData/raw/master/samples/sample.R
+```
+in console to get source code of sample.R
 
 -------
 # Citing rrbsData
