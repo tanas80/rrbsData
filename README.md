@@ -17,6 +17,11 @@ for DNA methylation analysis and feature selection with S4 class structure. The 
  * Easy R-style filtering object with indexes of specimens or CpG-dinucleotides
  * Two layered matrix data design (B-value and coverage).
  * Some reports
+## Installation
+
+library(devtools)
+install_github("tanas80/rrbsData", build_vignettes=FALSE, 
+               dependencies=TRUE, ref="init")
  
 -------
 # How to Use
