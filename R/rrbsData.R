@@ -1,13 +1,20 @@
-library(plyr)
-library(methylKit)
-require(BSgenome)
-require(BSgenome.Hsapiens.UCSC.hg19)
-require(Biostrings)
+#' @import plyr
+#' @import dplyr
+#' @import BSgenome.Hsapiens.UCSC.hg19
+#' @import doParallel
+#' @import methylKit
+#' @import Biostrings
 
-require(plyr);
-require(dplyr);
+#library(plyr)
+#library(methylKit)
+#require(BSgenome)
+#require(BSgenome.Hsapiens.UCSC.hg19)
+#require(Biostrings)
 
-library(doParallel)
+#require(plyr);
+#require(dplyr);
+
+#library(doParallel)
 registerDoParallel();
 
 #script.dir <- dirname(parent.frame(2)$ofile);
@@ -16,7 +23,7 @@ registerDoParallel();
 #source(sprintf("%s/dist_pairwise.R", script.dir));
 #source(sprintf("%s/cluster.R", script.dir));
 
-################
+####Support Functions####
 dist_pairwise <- function(x, method="manhattan"){
 
   if (!is.element(method, c("manhattan", "pearson")))
@@ -353,7 +360,7 @@ parse_sample_name <- function(rrbs_sample_name)
     "extra"=extra);
 }
 
-
+####Main Functions####
 
 
 rrbsSampleInfo <- setClass(
