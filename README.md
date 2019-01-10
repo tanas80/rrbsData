@@ -38,7 +38,7 @@ or
 ```console
 $ wget https://github.com/tanas80/rrbsData/raw/master/samples/sample.R
 ```
-in console to get source code of sample.R
+in Unix console to get source code of sample.R
 
 -------
 # Citing rrbsData
