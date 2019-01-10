@@ -1,0 +1,19 @@
+---
+title: "Getting a GSE to R and download .cov files for further analysis "
+output: pdf_document
+---
+
+## Code Example
+
+This code gets a GSE using GEOquery library, do some preprocessing to access the links to .cov files and download them.
+
+```{r }
+knitr::opts_chunk$set(echo = F)
+
+gse <- GEOquery::getGEO('GSE122799')[[1]]
+gse_phen <- gse@phenoData@data
+gse_phen_subs <- gse_phen[grepl('Cell line', gse_phen$characteristics_ch1) | grepl('Normal Breast', gse_phen$characteristics_ch1.1),c('title','geo_accession','characteristics_ch1','characteristics_ch1.1','supplementary_file_1')]
+gse_phen_subs$supplementary_file_1 = as.character(gse_phen_subs$supplementary_file_1)
+print(gse_phen_subs$supplementary_file_1)
+sapply(gse_phen_subs$supplementary_file_1, function(x) { dest <- paste0('~/projs/rrbsData/samples/','epi',gsub("^.*\\_epi",'',x)); download.file(x,destfile = dest, method = 'wget') } )
+```
