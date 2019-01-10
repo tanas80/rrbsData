@@ -1,0 +1,11 @@
+Package: rrbsData
+Type: Package
+Title: rrbsData: Package for methylation data manipulations
+Version: 0.1.0
+Author: Alexander Tanas
+Maintainer: Alexander Tanas <tanas80@gmail.com>
+Description: This package allows you to manipulate the RRBS-data in
+    R-fashion style, also do some reports.
+License: GPL
+Encoding: UTF-8
+
