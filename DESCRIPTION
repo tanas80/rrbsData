@@ -8,9 +8,10 @@ Description: This package allows you to manipulate the RRBS-data in
     R-fashion style, also do some reports.
 License: GPL
 Encoding: UTF-8
+LazyLoad: yes
 RoxygenNote: 6.1.1
 Depends: 
-    R(>= 3.5.0),
+    R(>= 3.5.0)
 Imports:
     plyr,
     dplyr,
