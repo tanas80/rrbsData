@@ -22,7 +22,7 @@ In R console:
 ```r
 library(devtools)
 install_github("tanas80/rrbsData", build_vignettes=FALSE, 
-               dependencies=TRUE, ref="init")
+               dependencies=TRUE, ref="init", repos=BiocManager::repositories())
 ```
 -------
 # How to Use
