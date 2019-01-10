@@ -8,4 +8,4 @@ Description: This package allows you to manipulate the RRBS-data in
     R-fashion style, also do some reports.
 License: GPL
 Encoding: UTF-8
-
+RoxygenNote: 6.1.1
