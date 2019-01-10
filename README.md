@@ -20,6 +20,7 @@ for DNA methylation analysis and feature selection with S4 class structure. The 
 ## Installation
 In R console:
 ```r
+install.packages("BiocManager")
 library(devtools)
 install_github("tanas80/rrbsData", build_vignettes=FALSE, 
                dependencies=TRUE, ref="init", repos=BiocManager::repositories())
