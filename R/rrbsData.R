@@ -1,27 +1,19 @@
 #' @import plyr
 #' @import dplyr
+#' @import BSgenome
 #' @import BSgenome.Hsapiens.UCSC.hg19
 #' @import doParallel
 #' @import methylKit
 #' @import Biostrings
+#' @importFrom grDevices rainbow
+#' @importFrom graphics legend plot
+#' @importFrom methods is new slotNames
+#' @importFrom stats as.dendrogram cor dendrapply dist fisher.test hclust is.leaf p.adjust quantile sd
+#' @importFrom utils read.table
 
-#library(plyr)
-#library(methylKit)
-#require(BSgenome)
-#require(BSgenome.Hsapiens.UCSC.hg19)
-#require(Biostrings)
 
-#require(plyr);
-#require(dplyr);
-
-#library(doParallel)
 registerDoParallel();
 
-#script.dir <- dirname(parent.frame(2)$ofile);
-#source(sprintf("%s/load_epi2.R", script.dir));
-#source(sprintf("%s/parse_sample_name.R", script.dir));
-#source(sprintf("%s/dist_pairwise.R", script.dir));
-#source(sprintf("%s/cluster.R", script.dir));
 
 ####Support Functions####
 dist_pairwise <- function(x, method="manhattan"){

@@ -11,11 +11,12 @@ Encoding: UTF-8
 RoxygenNote: 6.1.1
 Depends: 
     R(>= 3.2.0),
-    methods
 Imports:
     plyr,
     dplyr,
+    BSgenome,
     BSgenome.Hsapiens.UCSC.hg19,
     doParallel,
     methylKit,
-    Biostrings
+    Biostrings,
+    methods
