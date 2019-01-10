@@ -10,12 +10,12 @@ License: GPL
 Encoding: UTF-8
 RoxygenNote: 6.1.1
 Depends: 
-    R
+    R,
     methods
 Imports:
-    plyr
-    dplyr
-    BSgenome.Hsapiens.UCSC.hg19
-    doParallel
-    methylKit
+    plyr,
+    dplyr,
+    BSgenome.Hsapiens.UCSC.hg19,
+    doParallel,
+    methylKit,
     Biostrings
