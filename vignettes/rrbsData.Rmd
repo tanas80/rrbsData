@@ -7,13 +7,120 @@ output: pdf_document
 
 This code gets a GSE using GEOquery library, do some preprocessing to access the links to .cov files and download them.
 
-```{r }
-knitr::opts_chunk$set(echo = F)
+
+```{r download GSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(stringr)
+library(GenomicRanges)
+library(rtracklayer)
+library(plyr)
+library(rrbsData)
+
+library(doParallel)
+registerDoParallel(cores=32)
+
+cov_path = '~/projs/rrbsData/samples'
+samples_url = 'http://www.epigenetic.ru/projects/rrbs-bc/GSE122799.tsv'
+xmaI_lib_ranges_url = 'http://tools.epigenetic.ru/LibraRe/hg19/CCCGGG/90-220'
+
+
+# Get all CpG-pairs of reference genome belonging to XmaI-RRBS library only
+cpg <- subsetByOverlaps(
+  load_g_cpg(BSgenome.Hsapiens.UCSC.hg19::Hsapiens), # все CpG пары генома
+  {
+    # Loading XmaI-RRBS library genomic elements layout
+    lib <- import.bed(xmaI_lib_ranges_url)
+    # Correcting elements to capture CpG's in restrictase recognition site (overlapping?)
+    start(lib) <- start(lib) - 4; end(lib) <- end(lib) + 4;
+    lib;
+  });
+
 
 gse <- GEOquery::getGEO('GSE122799')[[1]]
 gse_phen <- gse@phenoData@data
-gse_phen_subs <- gse_phen[grepl('Cell line', gse_phen$characteristics_ch1) | grepl('Normal Breast', gse_phen$characteristics_ch1.1),c('title','geo_accession','characteristics_ch1','characteristics_ch1.1','supplementary_file_1')]
+
+# Select subsample
+gse_phen_subs <- gse_phen[
+  grepl('Cell line', gse_phen$characteristics_ch1) | grepl('Normal Breast', gse_phen$characteristics_ch1.1),
+  c('title','geo_accession','characteristics_ch1','characteristics_ch1.1','supplementary_file_1') ]
 gse_phen_subs$supplementary_file_1 = as.character(gse_phen_subs$supplementary_file_1)
 print(gse_phen_subs$supplementary_file_1)
-sapply(gse_phen_subs$supplementary_file_1, function(x) { dest <- paste0('~/projs/rrbsData/samples/','epi',gsub("^.*\\_epi",'',x)); download.file(x,destfile = dest, method = 'wget') } )
+
+file_df <- ddply(
+  gse_phen, c('geo_accession', 'supplementary_file_1'), 
+  function(row) {
+    # row <- gse_phen[4,]
+    url <- as.character(row[['supplementary_file_1']])
+    dst_fn <- file.path(cov_path, basename(url));
+
+    head_resp <- curlGetHeaders(url)
+
+    # url_content_length = with(
+    #   list(grep_list= str_match(head_resp, regex("Content-length: (\\d+)", ignore_case = T))),
+    #   as.numeric(grep_list[!is.na(grep_list[,1]), 2])
+    # )[1]
+    # if (!file.exists(dst_fn) || file.size(dst_fn) != url_content_length) {
+    #   cat("Downloading ...", '\n', ' url: ', url, '\n   to:', dst_fn, '\n')
+    #   download.file(url,destfile = dst_fn, method = 'wget')
+    # } else{
+    #   cat(sprintf("File %s of size %d exists already.\n", dst_fn, url_content_length));
+    # }
+
+    c('Cov_FileName' = dst_fn, Sample_Name = row['geo_accession']) # return
+  })
+
+clinical_df <- read.table(samples_url, quote = '\"', header=TRUE, stringsAsFactors = FALSE)
+sample_df <- merge(x=file_df, y=clin_df, by.x='geo_accession', by.y='Accession')
+
+# sample_list ####
+sample_list <- rrbsSampleList({
+    sample_list <- lapply(
+      1:nrow(sample_df),
+      function(i) {
+        # i <- 1
+        s <- lapply(sample_df, "[", i);
+        new("rrbsSampleInfo", s);
+      });
+    names(sample_list) <- lapply(sample_list, '[[', "geo_accession")
+    
+    sample_list;
+  },
+  groups = list(
+    "EType" = c(
+      "NORM" = "green",
+      "CL" = "black",
+      "LumA" = "blue",
+      "LumB" = "cyan",
+      "HER2" = "magenta",
+      "TN" = "red",
+      "UN" = "lightgray"
+    ),
+    "MTypeHE" = c(
+      "CL" = "black",
+      "hiHER" = "darkmagenta",
+      "hiHET" = "gray",
+      "hiLumAB" = "darkturquoise",
+      "NORM" = "green",
+      "modLumB" = "cyan",
+      "modTNBC" = "red",
+      "modHER" = "magenta"
+    )
+  )
+);
+
+rrbs_data <- loadRrbsData(sample_df, cpg, "Breast Cancer")
+
+
+
+```
+
+
+
+```{r load samples metadata}
+
+
+load("http://", verbose=TRUE)
+
+
 ```

@@ -1,5 +1,4 @@
 #' @import plyr
-#' @import dplyr
 #' @import BSgenome
 #' @import BSgenome.Hsapiens.UCSC.hg19
 #' @import doParallel
@@ -10,12 +9,13 @@
 #' @importFrom methods is new slotNames
 #' @importFrom stats as.dendrogram cor dendrapply dist fisher.test hclust is.leaf p.adjust quantile sd
 #' @importFrom utils read.table
+#' @importFrom Biostrings matchPDict PDict
+#' @importFrom IRanges subsetByOverlaps
+#' @include methylRawList_to_matrix.R
 
 
-registerDoParallel();
-
-
-####Support Functions####
+# Support Functions ####
+#' @export
 dist_pairwise <- function(x, method="manhattan"){
 
   if (!is.element(method, c("manhattan", "pearson")))
@@ -305,6 +305,7 @@ my.plot.hclust <- function(hc, types, colors, main="CpG methylation clustering",
   }
 }
 
+#' @export
 load_g_cpg <- function(g){
   do.call(c,
           llply(names(g), function(chr) {
@@ -319,9 +320,11 @@ load_g_cpg <- function(g){
             #  );
 
             GRanges(seqnames=chr, ranges=chr_ranges, seqinfo=seqinfo(g));
-          }, .parallel=TRUE));
+          },
+          .parallel=TRUE));
 };
 
+#' @export
 load_g_sites <- function(g, site) {
   do.call(c,
           llply(
@@ -332,6 +335,53 @@ load_g_sites <- function(g, site) {
               GRanges(seqnames=rep(chr, length(chr_ranges)), ranges=chr_ranges, seqinfo = seqinfo(g));
             },
             .parallel = TRUE));
+};
+
+#'
+load_cov <- function(filename, sample.id, cpg, assembly, context, resolution, mincov=0){
+
+  cat(sprintf("Loading epi sample %s.\n", sample.id));
+
+  if (assembly != "hg19")
+    stop("assembly 'hg19' suppoerted only");
+
+  if (context != "CpG")
+    stop("context 'CpG' cupported only")
+
+  cov_d <- read.table(
+    filename,
+    header=F, skip=0, sep="\t", dec=".", stringsAsFactor=F,
+    col.names=c("chr", "start", "end", "meth_percent", "count_m", "count_u")
+  );
+
+  cov_plus <- {
+    d <- cov_d[, c("chr", "start", "count_m", "count_u")];
+    colnames(d) <- c("chr", "start", "plus_m", "plus_u");
+    d; };
+  cov_minus <- {
+    d <- cov_d[, c("chr", "end", "count_m", "count_u")];
+    colnames(d) <- c("chr", "end", "minus_m", "minus_u");
+    d; };
+
+  cpg_df <- data.frame(chr=as.character(seqnames(cpg)), start=start(cpg), end=end(cpg), strand=strand(cpg), stringsAsFactors=F);
+  cpg_cov <- dplyr::left_join(
+    dplyr::left_join(cpg_df, cov_plus, by=c("chr", "start")),
+    cov_minus, by=c("chr", "end"));
+
+  cpg_cov$count_m <- cpg_cov$plus_m + cpg_cov$minus_m;
+  cpg_cov$count_u <- cpg_cov$plus_u + cpg_cov$minus_u;
+  cpg_cov$coverage <- cpg_cov$count_m + cpg_cov$count_u;
+  cpg_cov$freqC <- cpg_cov$count_m / cpg_cov$coverage;
+
+  cpg_cov <- methylKit:::.structureGeneric(
+    cpg_cov,
+    pipeline = list(chr.col=1, start.col=2, end.col=3, strand.col=4, coverage.col=11, freqC.col=12, fraction=T),
+    mincov=mincov
+  );
+
+  obj <- new("methylRaw", cpg_cov, sample.id=sample.id, assembly=assembly, context=context, resolution=resolution);
+
+  obj;
 };
 
 parse_sample_name <- function(rrbs_sample_name)
@@ -354,11 +404,14 @@ parse_sample_name <- function(rrbs_sample_name)
 
 ####Main Functions####
 
+# rrbsSampleInfo class ####
 
+#' @export rrbsSampleInfo
+#' @exportClass rrbsSampleInfo
 rrbsSampleInfo <- setClass(
   "rrbsSampleInfo",
   contains = "list"
-  );
+);
 
 setMethod(
   "show",
@@ -371,12 +424,15 @@ setMethod(
     }
   });
 
+# rrbsSampleList class ####
+#' @export rrbsSampleList
+#' @exportClass rrbsSampleList
 rrbsSampleList <- setClass(
   "rrbsSampleList",
   contains = "list",
   slots = c(
     groups = "list" # list of "data.frame" objects
-    ));
+  ));
 
 setMethod(
   "as.data.frame",
@@ -414,39 +470,46 @@ setMethod(
     show(names(object));
   });
 
-`[.rrbsSampleList` <- function(x, i){
-  #cat('[.rrbsSampleList\n');
-  #cat("i =", i, "\n");
-  #cat("class(i) =", class(i), "\n");
+setMethod(
+  "[",
+  "rrbsSampleList",
+  function(x, i, j, ..., drop) {
+    # cat('[.rrbsSampleList\n');
+    # cat("i =", i, "\n");
+    # cat("class(i) =", class(i), "\n");
 
-  new(
-    "rrbsSampleList",
-    {
-      indecies <- c();
-
-      if (is.logical(i))
+    new(
+      "rrbsSampleList",
       {
-        indicies <- (1:length(x))[i];
-      } else if (is.numeric(i)) {
-        indicies <- i;
-      } else if (is.character(i)) {
-        indicies <- match(i, names(x));
-      }
-      # cat("indicies = ", indicies, "\n");
-      ss <- lapply(indicies, function(li) { x[[li]];});
-      names(ss) <- lapply(indicies, function(li) { names(x)[[li]];});
-      ss;
-    },
-    groups = x@groups
-  );
-};
+        indecies <- c();
+
+        if (is.logical(i))
+        {
+          indicies <- (1:length(x))[i];
+        } else if (is.numeric(i)) {
+          indicies <- i;
+        } else if (is.character(i)) {
+          indicies <- match(i, names(x));
+        }
+        # cat("indicies = ", indicies, "\n");
+        ss <- lapply(indicies, function(li) { x[[li]];});
+        names(ss) <- lapply(indicies, function(li) { names(x)[[li]];});
+        ss;
+      },
+      groups = x@groups);
+  });
+
+#' #' @export
+#' `[.rrbsSampleList` <- function(x, i){
+
+#' };
 
 `$.rrbsSampleList` <- function(x, attr_name){
   #cat("attr_name:", attr_name, "\n");
   sapply(x, "[[", attr_name);
 };
 
-
+#'
 loadRrbsSamples <- function(filename){
 
   # Ошибка "line NNN did not have NNN elements" бывает из-за того, что на листе были ошибки формул
@@ -455,6 +518,7 @@ loadRrbsSamples <- function(filename){
   readRrbsSamples(t);
 }
 
+#'
 readRrbsSamples <- function(tbl, lis){
   # tbl - данные из гуглотаблицы
   # lis - данные из БД ЛИС
@@ -501,15 +565,6 @@ readRrbsSamples <- function(tbl, lis){
     }
   )
 
-  # tbl$Cov_FileName <- paste(
-  #   "../samples/", tbl$Sample_Name, "/",
-  #   tbl$Sample_Name, ".bismark_bt2_cln.sorted.bismark.cov", sep="");
-
-  # tbl$Bed_FileName <- paste(
-  #   "../samples/", tbl$Sample_Name, "/",
-  #   tbl$Sample_Name, ".bismark_bt2_cln.sorted.bam.bed", sep=""
-  # );
-
   new(
     "rrbsSampleList", {
       sample_list <- lapply(
@@ -521,17 +576,6 @@ readRrbsSamples <- function(tbl, lis){
       names(sample_list) <- lapply(sample_list, '[[', "Sample_Name_Short")
       sample_list;
     },
-    #     groups = list(
-    #       "EType" = data.frame(
-    #         name=c("NORM", "CL", "LumA", "LumB", "HER2", "TN", "UN"),
-    #         id=c(10, 11, 12, 13, 14, 15, 99),
-    #         color=c("green", "black", "blue", "cyan", "magenta", "red", "lightgray")
-    #       ),
-    #       "GType" = data.frame(
-    #         name=c("NORM", "CL", "duct", "lobul", "mix", "medul", "meta", "mpc", "neuro", "UN"),
-    #         id=c(20, 21, 22, 23, 24, 25, 26, 27, 28, 99),
-    #         color=c("green", "black", "blue", "red", "yellow", "gray", "gray", "gray", "gray", "lightgray")
-    #       )));
     groups = list(
       "EType" = c(
         "NORM" = "green",
@@ -598,13 +642,17 @@ readRrbsSamples <- function(tbl, lis){
     description = x@description);
 };
 
+# rrbsDataList class ####
+#' @export rrbsDataList
+#' @exportClass rrbsDataList
 rrbsDataList <- setClass(
   "rrbsDataList",
   contains = "list",
   slots = c(
     samples = "rrbsSampleList",
-    description = "character"
-    ));
+    description = "character",
+    meta = 'list'
+  ));
 
 setMethod(
   "show",
@@ -633,60 +681,20 @@ setMethod(
     x@description;
   });
 
-setMethod(
-  "as.matrix",
-  signature("rrbsDataList"),
-  function(x){
-
-    m <- methylRawList_to_matrix(x);
-
-    m_coords <- str_match(rownames(m$b.value), "([^:]+):(\\d+)-(\\d+)/(.)")
-
-    m_coords_gr <- GRanges(
-      seqnames = m_coords[,2],
-      ranges = IRanges(as.numeric(m_coords[,3]), as.numeric(m_coords[,4])),
-      strand = "*"
-    );
-    names(m_coords_gr) <- rownames(m);
-
-    tss_gr_filename <- "RData/2015-12/tss_gr.RData";
-    load(file=tss_gr_filename, verbose=T); # загружаем структуру данных в формате RData
-
-    h <- findOverlaps(m_coords_gr, tss_gr)
-
-    # c новой версией случилась замена названий слотов subjectHits и queryHits
-    # объекта SortedByQueryHits с потерей обратной совместимости.
-    h.to <- if ("subjectHits" %in% slotNames(h)) { h@subjectHits } else { h@to };
-    h.from <- if ("queryHits" %in% slotNames(h)) { h@queryHits } else { h@from };
-
-    genes <- llply(
-      1:nrow(m$b.value),
-      function(i){
-        genes_str <- paste(names(table(tss_gr[h.to[h.from == i]]$geneName)), collapse=", ");
-        genes_str;
-      });
-
-    res <- new(
-      "rrbsMatrix",
-      m$b.value,
-      coverage = m$coverage,
-      samples = x@samples,
-      coords = m_coords_gr,
-      genes = genes,
-      depth_threshold = x@depth_threshold,
-      width_threshold = x@width_threshold,
-      description = description(x));
-
-    res;
-  });
 
 #' Loads .cov files of bismark format to S4 list like object.
 #'
-#' @param ss A data.frame with sample properties (metadata).
-#'           Column named 'Cov_FileName' is mandatory.
+#' @param ss A 'rrbsSampleList' object (list of 'rrbsSampleInfo') with sample properties (metadata).
+#'           Property named 'Cov_FileName' is mandatory.
 #' @param cpg A
+#' @export
 loadRrbsData <- function(ss, cpg, description, ...){
 
+  # Check all sample objects contains 'Cov_FileName' property
+  if (sum(sapply(ss, function(smpl) { !('Cov_FileName' %in% names(smpl)) })) > 0)
+    stop("'Cov_FileName' property is mandatory")
+
+  # Check all files of sample list exists
   files <- sapply(ss, "[[", "Cov_FileName")
   if (sum(!file.exists(files)) > 0)
     stop(as.character(sprintf("Some files are missed:\n %s",paste(with(list(fns=files), fns[!file.exists(fns)]), collapse="\n"))));
@@ -695,20 +703,18 @@ loadRrbsData <- function(ss, cpg, description, ...){
     1:length(ss),
     function(i, ss, cpg)
     {
+      # i <- 1
       si <- ss[[i]];
-      switch(
-        as.character(si$Src),
-        epi=load_epi2(
+      load_cov(
           filename=as.character(si$Cov_FileName),
-          sample.id=as.character(si$Sample_Name_Short),
+          sample.id=as.character(si$Sample_Name),
           cpg,
           assembly="hg19", context="CpG", resolution="base",
           ...
-        ),
-        ucsc="load_ucsc"
-      );
+        );
     },
-    ss, cpg, .parallel = TRUE);
+    ss, cpg,
+    .parallel = TRUE);
   names(rrbs_data_list) <- names(ss);
 
   new(
@@ -719,32 +725,13 @@ loadRrbsData <- function(ss, cpg, description, ...){
   );
 };
 
-rrbsDataFiltered <- setClass(
-  "rrbsDataFiltered",
-  contains = "rrbsDataList",
-  slots = c(
-    width_threshold = "numeric",
-    depth_threshold = "numeric"
-    ));
-
-setMethod(
-  "description",
-  signature = c("rrbsDataFiltered"),
-  function(x){
-    #cat(class(x), "\n");
-    #cat(x@width_threshold, "\n");
-    sprintf(
-      "%s, width: %d, depth: %d",
-      x@description,
-      x@width_threshold,
-      x@depth_threshold);
-  });
-
+#' @export
 filterRrbsData <- function(rrbs_data, width_threshold, depth_threshold){
 
   if (class(rrbs_data) != "rrbsDataList")
     stop("Argument 'rrbs_data' class must be 'rrbsDataList'");
 
+  # Using methylKit filters
   mrl <- new(
     "methylRawList",
     lapply(
@@ -753,40 +740,47 @@ filterRrbsData <- function(rrbs_data, width_threshold, depth_threshold){
         sample_data[!is.na(sample_data$coverage)];
       }));
 
-  # фильтруем не только по минимальному покрытие, но и по чрезмерному
-  mrl_fltDpt <- filterByCoverage(
+  # Filter for min and over depth
+  mrl_fltDpt <- methylKit::filterByCoverage(
     mrl,
     lo.count=depth_threshold, lo.perc=NULL,
     hi.count=NULL, hi.perc=99.95
   );
 
-  # фильтр по ширине (числу покрытых CpG в образце),
-  # необходимо применять ДО нормализации глубины покрытия
+  # Width coverage filter (count of CpG's passed prev filter)
   mrl_fltDpt_fltWidth <- with(
     list(width_flt=sapply(mrl_fltDpt, nrow) > width_threshold),
     {
-      # так как мы удаляем образцы, то объект MethylRawList нужно пересоздать
+      # Recreate MethylRawList object after deleting samples
       mrl_fltDpt_fltWdt <- new("methylRawList", mrl_fltDpt[width_flt]);
 
-      # нормализация ПОСЛЕ фильтра по ширине
-      mrl_fltDpt_fltWdt_nrm <- normalizeCoverage(mrl_fltDpt_fltWdt);
+      # Magic coverage normalization by methylKit
+      mrl_fltDpt_fltWdt_nrm <- methylKit::normalizeCoverage(mrl_fltDpt_fltWdt);
 
       new(
-        "rrbsDataFiltered",
-        new(
-          "rrbsDataList",
-          mrl_fltDpt_fltWdt_nrm,
-          samples=rrbs_data@samples[width_flt],
-          description = rrbs_data@description
-        ),
-        width_threshold=width_threshold,
-        depth_threshold=depth_threshold);
+        "rrbsDataList",
+        mrl_fltDpt_fltWdt_nrm,
+        samples=rrbs_data@samples[width_flt],
+        description = rrbs_data@description,
+        meta = c( # append 'filter' to list @meta slot of source
+          rrbs_data@meta,
+          list(
+            filter = list(
+              width_threshold=width_threshold,
+              depth_threshold=depth_threshold)
+          )));
     });
 
   mrl_fltDpt_fltWidth;
 };
 
-# уровень метилирования CpG в образцах
+# rrbsMatrix class ####
+#' Main two layered class with sample and CpG (coords, genes) description
+#'
+#' Do not export rrbsMatrix as raw constructor#' because 'rrbsMatrix'
+#' objects are mainly created from 'rrbsDataList' objects.
+#'
+#' @exportClass rrbsMatrix
 setClass(
   "rrbsMatrix",
   contains = "matrix",
@@ -830,6 +824,55 @@ setClass(
     else TRUE;
   });
 
+#' @export
+rrbsMatrix <- function(x, tss_gr){
+
+  if (!inherits(x, 'rrbsDataList'))
+    stop(sprintf("Invalid argument 'x' class '%s'", class(x)))
+
+  if (!inherits(tss_gr, 'GRanges') || !('geneName' %in% names(mcols(tss_gr))) )
+    stop(sprintf("Invalid argument 'tss_gr' class '%s' with mcols '%s'.", class(tss_gr), paste(names(mcols(tss_gr)), collapse = ', ')))
+
+  m <- methylRawList_to_matrix(x);
+
+  m_coords <- str_match(rownames(m$b.value), "([^:]+):(\\d+)-(\\d+)/(.)")
+
+  m_coords_gr <- GRanges(
+    seqnames = m_coords[,2],
+    ranges = IRanges(as.numeric(m_coords[,3]), as.numeric(m_coords[,4])),
+    strand = "*"
+  );
+  names(m_coords_gr) <- rownames(m);
+
+  h <- findOverlaps(m_coords_gr, tss_gr)
+
+  # c новой версией случилась замена названий слотов subjectHits и queryHits
+  # объекта SortedByQueryHits с потерей обратной совместимости.
+  h.to <- if ("subjectHits" %in% slotNames(h)) { h@subjectHits } else { h@to };
+  h.from <- if ("queryHits" %in% slotNames(h)) { h@queryHits } else { h@from };
+
+  genes <- llply(
+    1:nrow(m$b.value),
+    function(i){
+      genes_str <- paste(names(table(tss_gr[h.to[h.from == i]]$geneName)), collapse=", ");
+      genes_str;
+    },
+    .parallel=TRUE);
+
+  res <- new(
+    "rrbsMatrix",
+    m$b.value,
+    coverage = m$coverage,
+    samples = x@samples,
+    coords = m_coords_gr,
+    genes = genes,
+    depth_threshold = x@depth_threshold,
+    width_threshold = x@width_threshold,
+    description = description(x));
+
+  res;
+};
+
 setMethod(
   "description",
   signature = c("rrbsMatrix"),
@@ -838,54 +881,59 @@ setMethod(
     x@description;
   });
 
-`[.rrbsMatrix` <- function(x, i, j){
-  # cat('[.rrbsMatrix\n');
-  # if (missing(i)) {
-  #   cat("i is missing\n")
-  # }
-  # else {
-  #   cat("i =", i, "\n")
-  # }
-  #
-  #   if (missing(j)) {
-  #     cat("j is missing\n")
-  #   } else {
-  #     cat("j =", j, "\n")
-  #   }
+#' @export
+setMethod(
+  "[",
+  "rrbsMatrix",
+  function(x, i, j, ..., drop){
+    # cat('[.rrbsMatrix\n');
+    # if (missing(i)) {
+    #   cat("i is missing\n")
+    # }
+    # else {
+    #   cat("i =", i, "\n")
+    # }
+    #
+    # if (missing(j)) {
+    #   cat("j is missing\n")
+    # } else {
+    #   cat("j =", j, "\n")
+    # }
 
-  if (!missing(i) && !missing(j)){
-    new("rrbsMatrix",
-        x@.Data[i,j, drop=FALSE],
-        coverage = x@coverage[i,j, drop=FALSE],
-        samples = x@samples[j],
-        coords = x@coords[i],
-        genes = x@genes[i],
-        depth_threshold = x@depth_threshold,
-        width_threshold = x@width_threshold,
-        description=x@description)
-  } else if( missing(i) && !missing(j)) {
-    new("rrbsMatrix",
-        x@.Data[,j, drop=FALSE],
-        coverage = x@coverage[,j, drop=FALSE],
-        samples = x@samples[j],
-        coords = x@coords,
-        genes = x@genes,
-        depth_threshold = x@depth_threshold,
-        width_threshold = x@width_threshold,
-        description=x@description)
-  } else if (!missing(i) && missing(j)) {
-    new("rrbsMatrix",
-        x@.Data[i,, drop=FALSE],
-        coverage = x@coverage[i,, drop=FALSE],
-        samples = x@samples,
-        coords = x@coords[i],
-        genes = x@genes[i],
-        depth_threshold = x@depth_threshold,
-        width_threshold = x@width_threshold,
-        description=x@description)
-  } else
-    stop("Not implemented");
-};
+    if (!missing(i) && !missing(j)){
+      new("rrbsMatrix",
+          x@.Data[i,j, drop=FALSE],
+          coverage = x@coverage[i,j, drop=FALSE],
+          samples = x@samples[j],
+          coords = x@coords[i],
+          genes = x@genes[i],
+          depth_threshold = x@depth_threshold,
+          width_threshold = x@width_threshold,
+          description=x@description)
+    } else if( missing(i) && !missing(j)) {
+      new("rrbsMatrix",
+          x@.Data[,j, drop=FALSE],
+          coverage = x@coverage[,j, drop=FALSE],
+          samples = x@samples[j],
+          coords = x@coords,
+          genes = x@genes,
+          depth_threshold = x@depth_threshold,
+          width_threshold = x@width_threshold,
+          description=x@description)
+    } else if (!missing(i) && missing(j)) {
+      new("rrbsMatrix",
+          x@.Data[i,, drop=FALSE],
+          coverage = x@coverage[i,, drop=FALSE],
+          samples = x@samples,
+          coords = x@coords[i],
+          genes = x@genes[i],
+          depth_threshold = x@depth_threshold,
+          width_threshold = x@width_threshold,
+          description=x@description)
+    } else
+      stop("Not implemented");
+  });
+
 
 #' Удаляем образцы, по которым нельзя посчитать расстояния
 #' с другими образцами. Начинаем с самых несвязанных
@@ -936,7 +984,7 @@ filter_disjoint <- function(x, min_shared_cpg = 1){
     depth_threshold = x@depth_threshold,
     width_threshold = x@width_threshold,
     description = sprintf("%s, min shared CpGs: %d", description(x), min_shared_cpg)
-    );
+  );
 }
 
 
@@ -1071,7 +1119,7 @@ setMethod(
           data.frame(
             "i"=rep(i, n-i),
             "j"=(i+1):n
-            ),
+          ),
           c("i","j"),
           function(row){
             v1 <- m[,row[1,1]];
@@ -1079,14 +1127,14 @@ setMethod(
 
             if (method == "pearson") {
               1- (1 + cor(v1, v2, use="pairwise.complete.obs", method="pearson"))/2;
-              }
+            }
             else if (method == "manhattan") {
               common_i <- !is.na(v1) & !is.na(v2);
               sum(abs(v1[common_i] - v2[common_i]))/sum(common_i);
-              }
+            }
             else {
               stop("Distance method error");
-              };
+            };
           });
       },
       .parallel=TRUE);
@@ -1191,22 +1239,22 @@ setMethod(
       });
 
     system.time(
-    res <- ldply(
-      1:nrow(x),
-      function(i_row, meth, unmeth, val, rows){
-        tbl <- rbind(
-          meth[i_row, ],
-          unmeth[i_row, ]
-        );
+      res <- ldply(
+        1:nrow(x),
+        function(i_row, meth, unmeth, val, rows){
+          tbl <- rbind(
+            meth[i_row, ],
+            unmeth[i_row, ]
+          );
 
-        p.value=fisher.test(tbl, workspace = 2e9)$p.value;
-        c(val[i_row,], p.value=p.value);
-      },
-      meth=g_meth[match(rownames(g_meth), rownames(x)),],
-      unmeth=g_unmeth[match(rownames(g_unmeth), rownames(x)),],
-      val=g_val[match(rownames(g_val), rownames(x)),],
-      rows=rownames(x),
-      .parallel=TRUE));
+          p.value=fisher.test(tbl, workspace = 2e9)$p.value;
+          c(val[i_row,], p.value=p.value);
+        },
+        meth=g_meth[match(rownames(g_meth), rownames(x)),],
+        unmeth=g_unmeth[match(rownames(g_unmeth), rownames(x)),],
+        val=g_val[match(rownames(g_val), rownames(x)),],
+        rows=rownames(x),
+        .parallel=TRUE));
     rownames(res) <- rownames(x);
     res$adj.p.value <- p.adjust(res$p.value);
     res;

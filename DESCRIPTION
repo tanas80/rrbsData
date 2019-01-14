@@ -26,4 +26,8 @@ Suggests:
     rmarkdown,
     BiocManager
 VignetteBuilder: knitr
-    
+Collate: 
+    'featuresData.R'
+    'merge_pairwise.R'
+    'methylRawList_to_matrix.R'
+    'rrbsData.R'
