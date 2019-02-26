@@ -337,7 +337,11 @@ load_g_sites <- function(g, site) {
             .parallel = TRUE));
 };
 
-#' Resolve seq with ambiguous IUPAC nucleotides to a vector of unambiguous seqs.
+#' Resolves site with ambiguous IUPAC nucleotides to a vector of unambiguous sites.
+#' @param site A character site as nucleotide seq
+#' @return A character vector of unambiguous nucleotides.
+#' @examples
+#' site_res('CHG')
 #' @export
 site_res <- function(site){
   #cat('site_res: ', site, '\n')
