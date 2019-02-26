@@ -7,8 +7,8 @@
 loadRrbsData(ss, cpg, description, ...)
 }
 \arguments{
-\item{ss}{A data.frame with sample properties (metadata).
-Column named 'Cov_FileName' is mandatory.}
+\item{ss}{A 'rrbsSampleList' object (list of 'rrbsSampleInfo') with sample properties (metadata).
+Property named 'Cov_FileName' is mandatory.}
 
 \item{cpg}{A}
 }
