@@ -337,6 +337,24 @@ load_g_sites <- function(g, site) {
             .parallel = TRUE));
 };
 
+#' Resolve seq with ambiguous IUPAC nucleotides to a vector of unambiguous seqs.
+#' @export
+site_res <- function(site){
+  #cat('site_res: ', site, '\n')
+  if (str_length(site) > 0)
+    do.call(
+      c,
+      lapply(
+        strsplit(IUPAC_CODE_MAP[substr(site,1,1)], split='')[[1]],
+        function(first_nt) {
+          #cat('first_nt: ', first_nt, '\n')
+          paste(first_nt, site_res(substr(site,2,str_length(site))), sep='')
+        })
+    )
+  else
+    ''
+}
+
 #'
 load_cov <- function(filename, sample.id, cpg, assembly, context, resolution, mincov=0){
 
